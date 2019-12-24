@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!--
+
+~~~~~~~~~~~~~~~~~~~~
+VNX Sample scenarios
+~~~~~~~~~~~~~~~~~~~~
+
+Name:        simple_lxc_ubuntu64
+Description: Just one Ubuntu virtual machine connected to a Network named Net0 with address 10.1.0.4. 
+             The host has an interface in Net0 with address 10.1.0.1  
+             This simple scenario is supposed to be used for testing the different 
+             types of virtual machines supported by VNX. You can start several simple_*.xml
+             scenarios and test the connectivity among virtual machines and the host, as all
+             scenarios share the same "Net0" network.  
+
+This file is part of the Virtual Networks over LinuX (VNX) Project distribution. 
+(www: http://www.dit.upm.es/vnx - e-mail: vnx@dit.upm.es) 
+
+Departamento de Ingenieria de Sistemas Telematicos (DIT)
+Universidad Politecnica de Madrid
+SPAIN
+
+-->
+
+
+<vnx xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:noNamespaceSchemaLocation="/usr/share/xml/vnx/vnx-2.00.xsd">
+  <global>
+    <version>2.0</version>
+    <scenario_name>nfv3_home_lxc_ubuntu64</scenario_name>
+    <automac offset="4"/>
+    <vm_mgmt type="none" />
+    <!--vm_mgmt type="private" network="10.250.0.0" mask="24" offset="12">
+       <host_mapping />
+    </vm_mgmt--> 
+    <vm_defaults>
+        <console id="0" display="no"/>
+        <console id="1" display="yes"/>
+    </vm_defaults>
+  </global>
+    
+
+  <net name="home1net" mode="openvswitch" controller='tcp:127.0.0.1:6633' of_version="OpenFlow13" fail_mode='secure'/>
+  <net name="AccessNet" mode="openvswitch">
+    <connection name='firstlink' net='home1net'/>
+    <connection name='secondlink' net='QOS'/>
+  </net>
+
+  <net name="QOS" mode="openvswitch" controller='tcp:127.0.0.1:6633' of_version="OpenFlow13" fail_mode='secure'/>
+  <net name="vcpe-r1" mode="virtual_bridge"/>
+
+
+  <net name="ExtNet" mode="virtual_bridge"/>
+  <net name="virbr0" mode="virtual_bridge" managed="no"/>
+
+  <vm name="h11" type="lxc" exec_mode="lxc-attach" arch="x86_64">
+    <filesystem type="cow">/usr/share/vnx/filesystems/rootfs_lxc_ubuntu64</filesystem>
+    <if id="1" net="home1net">
+      <!--<<mac>00:00.00:00:00:10</mac>-->
+      <ipv4>dhcp</ipv4>
+    </if>
+    <!--<exec seq="on_boot" type="verbatim">
+       # Change MgmtNet and TunnNet interfaces MTU
+       ifconfig eth1 mtu 1400
+       sed -i -e '/iface eth1 inet static/a \   mtu 1400' /etc/network/interfaces
+    </exec>-->
+  </vm>   
+
+
+  <vm name="h12" type="lxc" exec_mode="lxc-attach" arch="x86_64">
+    <filesystem type="cow">/usr/share/vnx/filesystems/rootfs_lxc_ubuntu64</filesystem>
+    <if id="1" net="home1net">
+      <!--<mac>00:00.00:00:00:20</mac>-->
+      <ipv4>dhcp</ipv4>
+    </if>
+    <!--<exec seq="on_boot" type="verbatim">
+       # Change MgmtNet and TunnNet interfaces MTU
+       ifconfig eth1 mtu 1400
+       sed -i -e '/iface eth1 inet static/a \   mtu 1400' /etc/network/interfaces
+    </exec>-->
+    
+  </vm> 
+
+
+
+
+
+  <vm name="vcpe" type="lxc" arch="x86_64">
+    <filesystem type="cow">/usr/share/vnx/filesystems/rootfs_lxc_vyos</filesystem>
+    <if id="1" net="QOS">
+      <ipv4>10.10.0.1/24</ipv4>
+      <!--<ipv6>2001:db8:0::1/64</ipv6>-->
+    </if>
+    <if id="2" net="vcpe-r1">
+      <ipv4>10.2.3.1/24</ipv4>
+      <!--<ipv6>2001:db8:1::1/64</ipv6>-->
+    </if>
+
+    <!--<if id="9" net="virbr0">
+      <ipv4>dhcp</ipv4>
+    </if>-->
+    <forwarding type="ip" />
+    <filetree seq="on_boot" root="/tmp/">/home/upm/Desktop/NFV-LAB-2019/script.sh</filetree>
+    <exec seq="on_boot" type="verbatim">
+	sleep 5
+    	sh /tmp/script.sh
+    </exec>
+    <route type="ipv4" gw="10.2.3.254">default</route>
+  </vm>
+  
+
+  <vm name="r1" type="lxc" exec_mode="lxc-attach" arch="x86_64">
+    <filesystem type="cow">/usr/share/vnx/filesystems/rootfs_lxc_ubuntu64</filesystem>
+    <if id="1" net="vcpe-r1">
+      <ipv4>10.2.3.254/24</ipv4>
+    </if>
+    <if id="3" net="ExtNet">
+    	<ipv4>10.2.4.1/24</ipv4>
+    </if>
+    <if id="9" net="virbr0">
+      <ipv4>dhcp</ipv4>
+    </if>
+    <forwarding type="ip" />
+    <filetree seq="on_boot" root="/usr/bin/" perms="755">/usr/bin/vnx_config_nat</filetree>
+    <exec seq="on_boot" type="verbatim">
+       /usr/bin/vnx_config_nat eth1 eth9
+    </exec>
+
+  </vm>
+
+
+  <vm name="s1" type="lxc" exec_mode="lxc-attach" arch="x86_64">
+    <filesystem type="cow">/usr/share/vnx/filesystems/rootfs_lxc_ubuntu64</filesystem>
+    <if id="1" net="ExtNet">
+      <ipv4>10.2.4.2/24</ipv4>
+    </if>
+    <route type="ipv4" gw="10.2.4.1">default</route>
+  </vm>
+
+
+
+  <vm name="s2" type="lxc" exec_mode="lxc-attach" arch="x86_64">
+    <filesystem type="cow">/usr/share/vnx/filesystems/rootfs_lxc_ubuntu64</filesystem>
+    <if id="1" net="ExtNet">
+      <ipv4>10.2.4.3/24</ipv4>
+    </if>
+    <route type="ipv4" gw="10.2.4.1">default</route>
+  </vm>
+
+
+</vnx>
